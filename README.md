@@ -1,4 +1,3 @@
-# Resume-Builder-Assessment
 <!doctype html>
 <html lang="en">
 <head>
@@ -137,20 +136,17 @@
     }
   </style>
 
-  <!-- Single bundle provides html2canvas + jsPDF + html2pdf namespace -->
-  <script
-    src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"
-    defer
-  ></script>
+  <!-- ✅ Correct bundle: provides html2canvas + jsPDF -->
+  <script defer src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 </head>
 <body>
   <h1>Drag-and-Drop Resume Builder</h1>
 
-  <div class="directions">
+  <div class="directions no-print">
     <strong>Directions:</strong> Press on the skill cards on the left and drag them
     to the Resume categories on the right. You may add skill cards by typing and pressing
     <em>Add Skills</em>. You are not required to use all skill cards. When finished,
-    press <em>Download as PDF</em> and save the file, then upload to Edio.
+    press <em>Print to PDF</em> and save the file, then upload to Edio.
   </div>
 
   <div class="container">
@@ -184,16 +180,9 @@
       </div>
     </div>
 
-    <!-- Right column: resume export area -->
+    <!-- Right column: resume export area (Header removed as requested) -->
     <div class="column" id="exportArea" aria-labelledby="resume-heading">
       <h2 id="resume-heading">Your Resume</h2>
-
-      <!-- (Optional) simple header fields for name/contact -->
-      <div class="resume-section" id="header">
-        <h3>Header</h3>
-        <div class="resume-item">Name: <em>(Add your name here)</em></div>
-        <div class="resume-item">Email/Phone: <em>(Add your contact here)</em></div>
-      </div>
 
       <div class="resume-section" id="skills"><h3>Skills</h3></div>
       <div class="resume-section" id="interests"><h3>Interests</h3></div>
@@ -201,7 +190,7 @@
       <div class="resume-section" id="volunteer"><h3>Volunteer Work</h3></div>
 
       <button class="btn no-print" id="downloadBtn" type="button" onclick="downloadPDF()">
-        Download as PDF
+        Print to PDF
       </button>
     </div>
   </div>
@@ -231,7 +220,7 @@
         newItem.textContent = text;
 
         section.appendChild(newItem);
-        // Optional: scroll the new item into view to reassure the student
+        // Optional: reassure students the item landed
         newItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       });
     });
@@ -258,14 +247,12 @@
       return Promise.all(
         imgs.map((img) => {
           if (img.complete) return Promise.resolve();
-          return new Promise((res) => {
-            img.onload = img.onerror = res;
-          });
+          return new Promise((res) => { img.onload = img.onerror = res; });
         })
       );
     }
 
-    // ------- PDF: Snapshot + Multi-page Slicing -------
+    // ------- PDF: Snapshot + Multi-page Slicing with graceful fallback -------
     async function downloadPDF() {
       const exportEl = document.getElementById('exportArea');
       const btn = document.getElementById('downloadBtn');
@@ -273,10 +260,16 @@
       // Verify libraries provided by the bundle are available
       const hasH2C = typeof window.html2canvas !== 'undefined';
       const hasJsPDF = window.jspdf && window.jspdf.jsPDF;
+
+      // Fallback: if bundle not available (e.g., CDN blocked), open print dialog
       if (!hasH2C || !hasJsPDF) {
-        alert('PDF generator is not available right now. Please reload and try again.');
-        console.error('Missing libraries:', { html2canvas: hasH2C, jsPDF: !!hasJsPDF });
-        return;
+        try {
+          window.print();
+          return;
+        } catch {
+          alert('PDF tools are blocked. Try reloading or a different network/browser.');
+          return;
+        }
       }
 
       // Disable button during generation
@@ -293,7 +286,7 @@
       await new Promise((r) => requestAnimationFrame(r));
 
       try {
-        // High-quality canvas snapshot (scaled for clarity)
+        // High-quality canvas snapshot (scaled for clarity, capped for performance)
         const scale = Math.min(2, window.devicePixelRatio || 1.5);
         const canvas = await window.html2canvas(exportEl, {
           scale,
@@ -303,8 +296,7 @@
           logging: false
         });
 
-        // Convert canvas to image
-        const fullImgData = canvas.toDataURL('image/jpeg', 0.98);
+        const fullImgData = canvas.toDataURL('image/jpeg', 0.96);
 
         // Setup jsPDF (A4 portrait)
         const { jsPDF } = window.jspdf;
@@ -352,27 +344,7 @@
               0, 0, imgWidthPx, sliceHeightPx    // destination rectangle in page canvas
             );
 
-            const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.98);
+            const pageImgData = pageCanvas.toDataURL('image/jpeg', 0.96);
             const sliceHeightMm = sliceHeightPx / pxPerMm;
 
             if (pageIndex > 0) pdf.addPage();
-            pdf.addImage(pageImgData, 'JPEG', margin, margin, usableWidth, sliceHeightMm);
-
-            sY += sliceHeightPx;
-            pageIndex++;
-          }
-        }
-
-        pdf.save('resume.pdf');
-      } catch (err) {
-        console.error('PDF generation failed:', err);
-        alert('Sorry—something went wrong generating the PDF. Try reloading or a different browser.');
-      } finally {
-        exportEl.classList.remove('for-pdf');
-        btn.textContent = originalLabel;
-        btn.disabled = false;
-      }
-    }
-  </script>
-</body>
-</html>
